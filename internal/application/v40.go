@@ -467,13 +467,7 @@ func (s *Service) TimelinePage(ctx context.Context, caseID string, in TimelineIn
 			return TimelinePage{}, fmt.Errorf("%w: cursor 无效", domain.ErrInvalid)
 		}
 	}
-	// Reuse the events backing array for event-type filtering to avoid an extra
-	// allocation. Store.Events may provide a cached slice, so this also becomes
-	// the mutation target for subsequent timeline requests.
-	matched := []domain.AuditEvent{}
-	if in.EventType != "" {
-		matched = events[:0]
-	}
+	matched := make([]domain.AuditEvent, 0, len(events))
 	for _, e := range events {
 		if e.SequenceNo <= after || (in.StartSequence > 0 && e.SequenceNo < in.StartSequence) || (in.EndSequence > 0 && e.SequenceNo > in.EndSequence) || (in.EventType != "" && e.EventType != in.EventType) || (in.ActorID != "" && e.ActorID != in.ActorID) || (in.RequestID != "" && e.RequestID != in.RequestID) {
 			continue
