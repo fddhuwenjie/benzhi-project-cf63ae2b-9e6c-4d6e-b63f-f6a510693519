@@ -466,6 +466,19 @@ func (s *Service) TimelinePage(ctx context.Context, caseID string, in TimelineIn
 		if e != nil {
 			return TimelinePage{}, fmt.Errorf("%w: cursor 无效", domain.ErrInvalid)
 		}
+		if after < 1 {
+			return TimelinePage{}, fmt.Errorf("%w: cursor 无效", domain.ErrInvalid)
+		}
+		cursorFound := false
+		for _, e := range events {
+			if e.SequenceNo == after {
+				cursorFound = true
+				break
+			}
+		}
+		if !cursorFound {
+			return TimelinePage{}, fmt.Errorf("%w: cursor 无效", domain.ErrInvalid)
+		}
 	}
 	matched := []domain.AuditEvent{}
 	for _, e := range events {
