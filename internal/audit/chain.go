@@ -67,27 +67,57 @@ func addManifest(items *[]ManifestItem, kind, id string, v any) {
 	*items = append(*items, ManifestItem{Kind: kind, ID: id, Digest: domain.Digest(v)})
 }
 
+// normalizeCaseSnapshot returns a snapshot of the case with the primary
+// identifier-keyed collections sorted by their identifiers for stable archive
+// digests. The input case is not mutated: every collection is copied before
+// sorting so the caller's slice backing arrays and element order are preserved.
 func normalizeCaseSnapshot(c *domain.Case) {
-	sort.Slice(c.Evidence, func(i, j int) bool {
-		return c.Evidence[i].EvidenceID < c.Evidence[j].EvidenceID
-	})
-	sort.Slice(c.Qualifications, func(i, j int) bool {
-		return c.Qualifications[i].QualificationID < c.Qualifications[j].QualificationID
-	})
-	sort.Slice(c.Deviations, func(i, j int) bool {
-		return c.Deviations[i].DeviationID < c.Deviations[j].DeviationID
-	})
-	sort.Slice(c.Decisions, func(i, j int) bool {
-		return c.Decisions[i].DecisionID < c.Decisions[j].DecisionID
-	})
-	sort.Slice(c.TrialObservations, func(i, j int) bool {
-		return c.TrialObservations[i].ObservationID < c.TrialObservations[j].ObservationID
-	})
+	c.Evidence = sortEvidenceByID(c.Evidence)
+	c.Qualifications = sortQualificationsByID(c.Qualifications)
+	c.Deviations = sortDeviationsByID(c.Deviations)
+	c.Decisions = sortDecisionsByID(c.Decisions)
+	c.TrialObservations = sortObservationsByID(c.TrialObservations)
+}
+
+func sortEvidenceByID(in []domain.Evidence) []domain.Evidence {
+	out := append([]domain.Evidence(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].EvidenceID < out[j].EvidenceID })
+	return out
+}
+
+func sortQualificationsByID(in []domain.Qualification) []domain.Qualification {
+	out := append([]domain.Qualification(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].QualificationID < out[j].QualificationID })
+	return out
+}
+
+func sortDeviationsByID(in []domain.Deviation) []domain.Deviation {
+	out := append([]domain.Deviation(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].DeviationID < out[j].DeviationID })
+	return out
+}
+
+func sortDecisionsByID(in []domain.Decision) []domain.Decision {
+	out := append([]domain.Decision(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].DecisionID < out[j].DecisionID })
+	return out
+}
+
+func sortObservationsByID(in []domain.TrialObservation) []domain.TrialObservation {
+	out := append([]domain.TrialObservation(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].ObservationID < out[j].ObservationID })
+	return out
+}
+
+func sortedEventsBySequence(in []domain.AuditEvent) []domain.AuditEvent {
+	out := append([]domain.AuditEvent(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].SequenceNo < out[j].SequenceNo })
+	return out
 }
 
 func BuildArchive(c domain.Case, events []domain.AuditEvent, at time.Time) (Archive, error) {
 	normalizeCaseSnapshot(&c)
-	sort.Slice(events, func(i, j int) bool { return events[i].SequenceNo < events[j].SequenceNo })
+	events = sortedEventsBySequence(events)
 	items := []ManifestItem{{Kind: "case_snapshot", ID: c.CaseID, Digest: domain.Digest(c)}}
 	for _, e := range c.Evidence {
 		items = append(items, ManifestItem{Kind: "evidence", ID: e.EvidenceID, Digest: e.ContentDigest})
