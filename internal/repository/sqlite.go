@@ -20,7 +20,10 @@ type Store struct {
 	historyMu    sync.RWMutex
 	historyCache map[string][]map[string]any
 }
-type Tx struct{ tx *sql.Tx }
+type Tx struct {
+	tx           *sql.Tx
+	historyDirty map[string]bool
+}
 
 func Open(path string) (*Store, error) {
 	if path == "" {
@@ -119,12 +122,24 @@ func (s *Store) Within(ctx context.Context, fn func(*Tx) error) error {
 	if err != nil {
 		return err
 	}
-	wrapped := &Tx{tx: tx}
+	wrapped := &Tx{tx: tx, historyDirty: map[string]bool{}}
 	if err = fn(wrapped); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	for station := range wrapped.historyDirty {
+		s.invalidateHistory(station)
+	}
+	return nil
+}
+
+func (s *Store) invalidateHistory(station string) {
+	s.historyMu.Lock()
+	delete(s.historyCache, station)
+	s.historyMu.Unlock()
 }
 
 func (t *Tx) LoadCase(ctx context.Context, id string) (*domain.Case, error) {
@@ -367,6 +382,9 @@ func (t *Tx) Activate(ctx context.Context, c *domain.Case, d domain.Decision, ex
 		return fmt.Errorf("%w: 测站版本生效区间冲突", domain.ErrConflict)
 	}
 	_, err = t.tx.ExecContext(ctx, `DELETE FROM active_trials WHERE station_id=? AND case_id=?`, c.StationID, c.CaseID)
+	if err == nil {
+		t.historyDirty[c.StationID] = true
+	}
 	return err
 }
 func (s *Store) CurrentCurve(ctx context.Context, station string) (map[string]string, error) {
